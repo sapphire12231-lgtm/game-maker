@@ -11,6 +11,10 @@ const PAGE = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#6c4cf5">
 <title>AI Game Maker</title>
 <style>
 :root{--bg:#f6f5ff;--fg:#1c1b2e;--card:#fff;--muted:#6b6a85;--accent:#6c4cf5;--bd:#dcd9f5}
@@ -99,9 +103,24 @@ $('dl').onclick = function () {
   a.download = (lastIdea.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'game') + '.html';
   a.click();
 };
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});
 </script>
 </body>
 </html>`;
+
+
+// ---- App install (PWA) ----
+const ICON192 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAB+klEQVR42u3X0Q1AQBBFUSu+1EYnqxqlqG19K0FiEzHm3BLWyZsodWmD9LTREwggASSABJAEkAASQAJIAkgACSABJAEkgASQAJIAEkACSAAJIAkgASSABJAEkAASQAJIAkgACSABJAEkgASQABJAEkACSAAJIAkgASSABJAEkAASQAJIAkgA3bcfs68LUK8hjAAyRQCZIoAwkr8wFw0gUwSQKQLIFAkgjABy0QAyRQBhBJBcNIBMEUCmCCBTBJAwAshFA8gUAYQRQHLRADJFAJkigEwRQMIIIBcNIFMEEEYAKftFA8gUAWSKADJFACkjI4BcNIBMEUAYBWUEkIsGkCkCSEGnCCBTBBBGACnoRQPIFHU1+TYh2tbTAulveiwQOgCh44QpqB4LhA5A6DhhCqrHAqEDEDpOGD0WSOnoAISOE0aPBUIHIGWk44TRY4HQAQgdJ0xJ9VggdABCxwmjxwKhA5DQccLosUDoAISOEyZ6LBA6AKHjhNFjgdARQOg4YfRYIHQAQkdpTxg9FggdgNBxwujRzxcInRcqdWleQU6YABJAAkgCSAAJIAEkASSABJAAkgASQAJIAEkACSABJIAEkASQABJAAkgCSAAJIAEkASSABJAAkgASQAJIAAkgCSABJIAEkASQABJAAkgCSAAJIAEkASSA9IkuulqpIUhe1h8AAAAASUVORK5CYII=', 'base64');
+const ICON512 = Buffer.from('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', 'base64');
+const MANIFEST = JSON.stringify({
+  name: 'AI Game Maker', short_name: 'Game Maker', start_url: '/', scope: '/',
+  display: 'standalone', background_color: '#13121f', theme_color: '#6c4cf5',
+  icons: [
+    { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }
+  ]
+});
+const SW = "self.addEventListener('install',function(){self.skipWaiting()});self.addEventListener('activate',function(e){e.waitUntil(self.clients.claim())});self.addEventListener('fetch',function(e){e.respondWith(fetch(e.request))});";
 
 // Simple per-visitor limit: 10 games per hour
 const LIMIT = 10, WINDOW = 3600e3;
@@ -168,6 +187,23 @@ const server = http.createServer(async function (req, res) {
       const html = d.content.map(function (c) { return c.text || ''; }).join('')
         .replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
       return send(res, 200, { html: html, truncated: d.stop_reason === 'max_tokens' });
+    }
+
+    if (req.method === 'GET' && path === '/manifest.json') {
+      res.writeHead(200, { 'content-type': 'application/manifest+json' });
+      return res.end(MANIFEST);
+    }
+    if (req.method === 'GET' && path === '/icon-192.png') {
+      res.writeHead(200, { 'content-type': 'image/png' });
+      return res.end(ICON192);
+    }
+    if (req.method === 'GET' && path === '/icon-512.png') {
+      res.writeHead(200, { 'content-type': 'image/png' });
+      return res.end(ICON512);
+    }
+    if (req.method === 'GET' && path === '/sw.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-cache' });
+      return res.end(SW);
     }
 
     res.writeHead(404, { 'content-type': 'text/plain' });
