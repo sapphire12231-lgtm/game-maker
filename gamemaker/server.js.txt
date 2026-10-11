@@ -1,0 +1,184 @@
+// AI Game Maker - ONE file. Run: ANTHROPIC_API_KEY=sk-ant-... node server.js  (Node 18+)
+const http = require('http');
+
+const KEY = process.env.ANTHROPIC_API_KEY;
+if (!KEY) { console.error('Set the ANTHROPIC_API_KEY environment variable first.'); process.exit(1); }
+
+const SYS = 'You are a game developer. Build the game the user describes as ONE complete, self-contained HTML file (inline CSS and JS, no external libraries, images or network requests). Requirements: playable immediately, clear instructions on screen, score display, game over and restart, works with keyboard AND touch/mouse, fits a container about 800x560, good-looking with a dark background and bright colors, no alerts. If the idea is unsafe or inappropriate, build a harmless simple game instead. Output ONLY the raw HTML starting with <!DOCTYPE html>. No markdown fences, no explanation.';
+
+const PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Game Maker</title>
+<style>
+:root{--bg:#f6f5ff;--fg:#1c1b2e;--card:#fff;--muted:#6b6a85;--accent:#6c4cf5;--bd:#dcd9f5}
+@media (prefers-color-scheme:dark){:root{--bg:#13121f;--fg:#ecebff;--card:#1e1c30;--muted:#9c9ac0;--accent:#8b72ff;--bd:#33305a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+main{max-width:900px;margin:0 auto;padding:24px 16px}
+h1{margin:0 0 4px;font-size:1.8rem}
+p.sub{margin:0 0 20px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input{flex:1;min-width:200px;padding:12px 14px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font-size:1rem}
+button{padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:1rem;cursor:pointer;font-weight:600}
+button:disabled{opacity:.5;cursor:wait}
+button.ghost{background:var(--card);color:var(--fg);border:1px solid var(--bd);font-weight:500;padding:6px 12px;font-size:.85rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 16px}
+#status{color:var(--muted);margin:8px 0;min-height:1.4em}
+#stage{display:none;background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+#bar{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--bd);gap:8px;flex-wrap:wrap}
+iframe{width:100%;height:560px;border:0;background:#fff;display:block}
+</style>
+</head>
+<body>
+<main>
+  <h1>🎮 AI Game Maker</h1>
+  <p class="sub">Type any game idea. The AI writes it and you play it right here.</p>
+  <div class="row">
+    <input id="idea" placeholder="e.g. snake but the snake is a dragon, tic-tac-toe vs a robot..." maxlength="300">
+    <button id="go">Make game</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div id="status"></div>
+  <div id="stage">
+    <div id="bar"><strong id="gname"></strong><span class="row"><button class="ghost" id="regen">Regenerate</button><button class="ghost" id="dl">Download</button></span></div>
+    <iframe id="frame" sandbox="allow-scripts" title="Generated game"></iframe>
+  </div>
+</main>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var lastHtml = "", lastIdea = "";
+
+["Snake","Tic-tac-toe vs computer","Flappy bird clone","Memory card match","Space invaders","Breakout"].forEach(function (t) {
+  var b = document.createElement('button');
+  b.className = 'ghost'; b.textContent = t;
+  b.onclick = function () { $('idea').value = t; make(); };
+  $('chips').appendChild(b);
+});
+
+async function make() {
+  if ($('go').disabled) return;
+  var idea = $('idea').value.trim();
+  if (!idea) { $('status').textContent = "Type a game idea first."; return; }
+  lastIdea = idea;
+  $('go').disabled = true;
+  $('status').textContent = "Writing your game (can take up to a minute)...";
+  try {
+    var res = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ idea: idea })
+    });
+    var data;
+    try { data = await res.json(); } catch (e) { throw new Error("The server took too long or sent a bad reply. Try again."); }
+    if (!res.ok) throw new Error(data.error || "Something went wrong");
+    if (!/<html|<!doctype|<canvas|<script/i.test(data.html)) throw new Error("The AI didn't return a game. Try rephrasing.");
+    lastHtml = data.html;
+    $('frame').srcdoc = data.html;
+    $('gname').textContent = idea;
+    $('stage').style.display = 'block';
+    $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    $('status').textContent = data.truncated ? "The game was cut off. Try a simpler idea or Regenerate." : "Ready! Click inside the game to play.";
+  } catch (e) {
+    $('status').textContent = "Error: " + e.message;
+  } finally {
+    $('go').disabled = false;
+  }
+}
+
+$('go').onclick = make;
+$('regen').onclick = make;
+$('idea').addEventListener('keydown', function (e) { if (e.key === 'Enter') make(); });
+$('frame').addEventListener('load', function () { try { $('frame').focus(); } catch (e) {} });
+$('dl').onclick = function () {
+  if (!lastHtml) return;
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lastHtml], { type: 'text/html' }));
+  a.download = (lastIdea.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'game') + '.html';
+  a.click();
+};
+</script>
+</body>
+</html>`;
+
+// Simple per-visitor limit: 10 games per hour
+const LIMIT = 10, WINDOW = 3600e3;
+const hits = new Map();
+setInterval(function () {
+  const now = Date.now();
+  for (const [ip, list] of hits) {
+    const fresh = list.filter(function (t) { return now - t < WINDOW; });
+    if (fresh.length) hits.set(ip, fresh); else hits.delete(ip);
+  }
+}, 600e3).unref();
+
+function limited(ip) {
+  const now = Date.now();
+  const list = (hits.get(ip) || []).filter(function (t) { return now - t < WINDOW; });
+  if (list.length >= LIMIT) { hits.set(ip, list); return true; }
+  list.push(now); hits.set(ip, list); return false;
+}
+
+function send(res, code, obj) {
+  res.writeHead(code, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
+
+function clientIp(req) {
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  return xff.length ? xff[xff.length - 1] : (req.socket.remoteAddress || 'unknown');
+}
+
+const server = http.createServer(async function (req, res) {
+  try {
+    const path = req.url.split('?')[0];
+
+    if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(PAGE);
+    }
+
+    if (req.method === 'POST' && path === '/api/generate') {
+      if (limited(clientIp(req))) return send(res, 429, { error: 'Too many games. Try again in an hour.' });
+
+      let body = '';
+      for await (const chunk of req) {
+        body += chunk;
+        if (body.length > 2000) return send(res, 413, { error: 'Request too long.' });
+      }
+      let idea = '';
+      try { idea = String(JSON.parse(body).idea || '').trim().slice(0, 300); }
+      catch (e) { return send(res, 400, { error: 'Bad request.' }); }
+      if (!idea) return send(res, 400, { error: 'Type a game idea.' });
+
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-5-5',
+          max_tokens: 12000,
+          system: SYS,
+          messages: [{ role: 'user', content: 'Game: ' + idea }]
+        })
+      });
+      const d = await r.json();
+      if (!r.ok) { console.error('API error:', JSON.stringify(d)); return send(res, 502, { error: 'The AI had a problem. Try again.' }); }
+      const html = d.content.map(function (c) { return c.text || ''; }).join('')
+        .replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
+      return send(res, 200, { html: html, truncated: d.stop_reason === 'max_tokens' });
+    }
+
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('Not found');
+  } catch (e) {
+    console.error(e);
+    if (!res.headersSent) send(res, 500, { error: 'Server error. Try again.' });
+  }
+});
+
+server.requestTimeout = 0;
+server.listen(process.env.PORT || 3000, function () {
+  console.log('Running on port ' + (process.env.PORT || 3000));
+});

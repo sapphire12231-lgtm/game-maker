@@ -1,0 +1,1 @@
+   {"name":"game-maker","scripts":{"start":"node server.js"}}
